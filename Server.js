@@ -6,8 +6,12 @@ const { getQuery } = require('./Database.js');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Middleware
-app.use(cors());
+// Middleware CORS configurado
+app.use(cors({
+  origin: ['http://localhost:4200', 'https://omnia-wp.vercel.app'],
+  credentials: true
+}));
+
 app.use(express.json()); // Reemplaza a body-parser
 app.use(express.static(path.join(__dirname, 'dist/omnia/browser')));
 
@@ -43,3 +47,4 @@ app.get('*', (req, res) => {
 app.listen(PORT, () => {
   console.log(`Servidor escuchando en http://localhost:${PORT}`);
 });
+
