@@ -52,6 +52,32 @@ app.get('/get-schedule', async (req, res) => {
   res.json(r.rows);
 });
 
+
+
+app.get('/schedule/minute', async (req, res) => {
+  try {
+    const dia  = parseInt(req.query.dia, 10);
+    const hora = String(req.query.hora || '').slice(0, 5); // "HH:mm"
+    if (!Number.isInteger(dia) || !/^\d{2}:\d{2}$/.test(hora)) {
+      return res.status(400).json({ error: 'bad_params' });
+    }
+
+    const q = await pool.query(
+      `SELECT id, nombre_clase, horario, dia_semana
+      FROM schedule
+      WHERE dia_semana = $1
+      AND date_trunc('minute', horario) = date_trunc('minute', $2::time)
+      ORDER BY horario ASC`,
+      [dia, hora + ':00']
+    );
+    
+    res.json(q.rows); // siempre JSON (aunque sea [])
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: 'server_error' });
+  }
+});
+
 // fallback Angular
 app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, 'dist/omnia/browser/index.html'));
