@@ -2,7 +2,7 @@
 const express = require('express');
 const path = require('path');
 const cors = require('cors');
-const { pool } = require('./Database.js'); // exportá pool
+const { pool, query } = require('./Database.js');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
