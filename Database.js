@@ -1,22 +1,26 @@
-// Database.js
 const { Pool } = require('pg');
 const dotenv = require('dotenv');
 dotenv.config();
 
-let { PGHOST, PGDATABASE, PGUSER, PGPASSWORD } = process.env;
+const { PGHOST, PGDATABASE, PGUSER, PGPASSWORD } = process.env;
 
 const pool = new Pool({
   host: PGHOST,
   database: PGDATABASE,
-  user: PGUSER,
+  user: PGUSER,          // <- en pg es "user", no "username"
   password: PGPASSWORD,
   port: 5432,
   ssl: { require: true },
 });
 
-async function getQuery(text, params = []) {
-  const r = await pool.query(text, params);
-  return r.rows;
+async function getQuery(text) {
+  return pool.query(text);
 }
 
-module.exports = { pool, getQuery };
+// NUEVO: query con parámetros
+async function query(text, params = []) {
+  return pool.query(text, params);
+}
+
+module.exports = { getQuery, query, pool };
+

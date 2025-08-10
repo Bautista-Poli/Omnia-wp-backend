@@ -13,36 +13,64 @@ app.use(express.static(path.join(__dirname, 'dist/omnia/browser')));
 // Nuevo: crear entrada en schedule con verificación
 app.post('/schedule', async (req, res) => {
   try {
-    const { nombre_clase, horario, dia_semana } = req.body;
+    let { nombre_clase, horario, dia_semana } = req.body;
 
     if (!nombre_clase || !horario || !Number.isInteger(dia_semana)) {
-      return res.status(400).json({ error: 'Faltan campos (nombre_clase, horario, dia_semana)' });
+      return res.status(400).json({ error: 'missing_fields' });
     }
 
-    // Normalizamos HH:mm:ss (por si viene "19:00")
-    const h = horario.length === 5 ? `${horario}:00` : horario;
+    nombre_clase = String(nombre_clase).trim();
 
-    // Chequeo explícito (opcional porque el UNIQUE lo garantiza)
-    const exists = await pool.query(
-      'SELECT 1 FROM schedule WHERE dia_semana=$1 AND horario=$2 LIMIT 1',
-      [dia_semana, h]
-    );
-    if (exists.rowCount > 0) {
-      return res.status(409).json({ error: 'slot_taken' });
+    // Acepta "HH:mm" o "HH:mm:ss"
+    if (/^\d{2}:\d{2}$/.test(horario)) {
+      horario = horario + ':00';
+    } else if (!/^\d{2}:\d{2}:\d{2}$/.test(horario)) {
+      return res.status(400).json({ error: 'bad_time_format' });
     }
 
-    const ins = await pool.query(
-      'INSERT INTO schedule (nombre_clase, horario, dia_semana) VALUES ($1,$2,$3) RETURNING *',
-      [nombre_clase, h, dia_semana]
+    // Chequeo por MINUTO (evitamos problemas con time/date_trunc):
+    // comparamos HH:MM de ambos
+    const clash = await query(
+      `SELECT id, nombre_clase, horario
+         FROM schedule
+        WHERE dia_semana = $1
+          AND to_char(horario, 'HH24:MI') = to_char($2::time, 'HH24:MI')
+        ORDER BY horario`,
+      [dia_semana, horario]
     );
+
+    if (clash.rows.length) {
+      const same = clash.rows.some(
+        r => r.nombre_clase.trim().toLowerCase() === nombre_clase.toLowerCase()
+      );
+      if (same) {
+        // misma clase ya en ese minuto → bloquear siempre
+        return res.status(409).json({ error: 'same_class' });
+      }
+      // hay otra clase en ese minuto
+      const isSecond01 = horario.endsWith(':01');
+      return res.status(409).json({
+        error: isSecond01 ? 'slot_taken_second01' : 'slot_taken',
+        occupants: clash.rows
+      });
+    }
+
+    // Insert respetando lo que vino (:00 o :01)
+    const ins = await query(
+      `INSERT INTO schedule (nombre_clase, horario, dia_semana)
+       VALUES ($1, $2::time, $3)
+       RETURNING *`,
+      [nombre_clase, horario, dia_semana]
+    );
+
     return res.status(201).json(ins.rows[0]);
   } catch (err) {
-    // Si la UNIQUE se dispara:
-    if (err.code === '23505') { // unique_violation
-      return res.status(409).json({ error: 'slot_taken' });
+    console.error('POST /schedule error:', err); // mirá logs en Railway
+    if (err.code === '23505') {
+      // por si tenés UNIQUE (dia_semana, horario)
+      return res.status(409).json({ error: 'slot_taken_exact' });
     }
-    console.error(err);
-    return res.status(500).json({ error: 'server_error' });
+    return res.status(500).json({ error: 'server_error', detail: String(err?.message || err) });
   }
 });
 
