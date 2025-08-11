@@ -60,6 +60,8 @@ app.post('/logout', (_req, res) => {
   res.sendStatus(204);
 });
 
+app.get('/healthz', (_req,res)=>res.status(200).send('ok'));
+
 app.get('/me', (req, res) => {
   try {
     const token = req.cookies?.[COOKIE];
