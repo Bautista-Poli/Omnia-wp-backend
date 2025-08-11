@@ -108,9 +108,6 @@ app.get('/profesores/:id', async (req, res) => {
         p.id,
         p.nombre,
         p.src AS foto_url,
-        p.bio,
-        p.instagram,
-        p.whatsapp
       FROM profesor p
       WHERE p.id = $1
       `,
