@@ -94,27 +94,40 @@ app.get('/get-classesList', async (_req, res) => {
   }
 });
 
-// --- Profes: intenta "profesores"; si no existe, responde []
-app.get('/get-profesorList', async (_req, res) => {
+
+app.get('/profesores/:id', async (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isInteger(id)) {
+    return res.status(400).json({ error: 'bad_request', detail: 'id must be integer' });
+  }
+
   try {
-    const { rows } = await pool.query(`
-      SELECT id, nombre, src
-      FROM profesor
-      ORDER BY nombre ASC
-    `);
-    // normalizo los nombres que usa el front
-    const list = rows.map(r => ({
-      id: r.id,
-      nombre: r.nombre,
-      foto_url: r.src,
-      bio: null
-    }));
-    res.json(list);
+    const { rows } = await pool.query(
+      `
+      SELECT
+        p.id,
+        p.nombre,
+        p.src AS foto_url,
+        p.bio,
+        p.instagram,
+        p.whatsapp
+      FROM profesor p
+      WHERE p.id = $1
+      `,
+      [id]
+    );
+
+    if (rows.length === 0) {
+      return res.status(404).json({ error: 'not_found' });
+    }
+
+    res.json(rows[0]);
   } catch (err) {
-    console.error('GET /get-profesorList error:', err.code, err.message);
+    console.error('GET /profesores/:id error:', err.code, err.message);
     res.status(500).json({ error: 'server_error', code: err.code, detail: err.message });
   }
 });
+
 
 
 // ---------- API existentes
