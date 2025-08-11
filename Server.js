@@ -72,6 +72,47 @@ app.get('/me', (req, res) => {
   }
 });
 
+
+app.get('/get-classesList', async (_req, res) => {
+  try {
+    const { rows } = await pool.query(
+      `SELECT id, name AS nombre, src, description
+       FROM classes
+       ORDER BY name ASC`
+    );
+
+    // si querés devolver también un slug:
+    const list = rows.map(r => ({
+      ...r,
+      slug: String(r.nombre || '').trim().toLowerCase().replace(/\s+/g, '-')
+    }));
+
+    return res.json(list); // si está vacío -> []
+  } catch (err) {
+    console.error('GET /get-classesList error:', err);
+    return res.status(500).json({ error: 'server_error' });
+  }
+});
+
+// --- Profes: intenta "profesores"; si no existe, responde []
+app.get('/get-profesorList', async (_req, res) => {
+  try {
+    try {
+      const { rows } = await pool.query(`
+        SELECT id, nombre, foto_url, bio
+        FROM profesores
+        ORDER BY nombre ASC
+      `);
+      return res.json(rows);
+    } catch (e) {
+      if (e.code === '42P01') return res.json([]); // tabla no existe → vacío
+      throw e;
+    }
+  } catch (err) {
+    console.error('GET /get-profesorList error:', err);
+    res.status(500).json({ error: 'server_error' });
+  }
+});
 // ---------- API existentes
 app.get('/get-schedule', async (_req, res) => {
   const r = await pool.query('SELECT * FROM schedule;');
