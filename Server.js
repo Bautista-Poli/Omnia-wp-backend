@@ -97,22 +97,34 @@ app.get('/get-classesList', async (_req, res) => {
 // --- Profes: intenta "profesores"; si no existe, responde []
 app.get('/get-profesorList', async (_req, res) => {
   try {
-    try {
-      const { rows } = await pool.query(`
-        SELECT id, nombre, foto_url, bio
-        FROM profesor
-        ORDER BY nombre ASC
-      `);
-      return res.json(rows);
-    } catch (e) {
-      if (e.code === '42P01') return res.json([]); // tabla no existe → vacío
-      throw e;
-    }
+    const { rows } = await pool.query(`
+      SELECT 
+        id,
+        nombre,
+        src AS foto_url,            -- alias del campo src
+        NULL::text AS bio,          -- si no tenés bio aún, devuelve null
+        id_classes_profesorid
+      FROM profesor
+      ORDER BY nombre ASC
+    `);
+
+    // opcional: agregar slug
+    const list = rows.map(r => ({
+      ...r,
+      slug: String(r.nombre || '').trim().toLowerCase().replace(/\s+/g, '-')
+    }));
+
+    return res.json(list);
   } catch (err) {
     console.error('GET /get-profesorList error:', err);
-    res.status(500).json({ error: 'server_error' });
+    // si la tabla o columnas no existen, devolvé []
+    if (err.code === '42P01' || err.code === '42703') {
+      return res.json([]);
+    }
+    return res.status(500).json({ error: 'server_error' });
   }
 });
+
 // ---------- API existentes
 app.get('/get-schedule', async (_req, res) => {
   const r = await pool.query('SELECT * FROM schedule;');
