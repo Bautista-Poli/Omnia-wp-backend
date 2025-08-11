@@ -81,7 +81,7 @@ app.get('/classes/:name', async (req, res) => {
       `
       SELECT
         c.src,
-        c.descripcion,
+        c.description,
         c.profesorId,
         c.profesor2Id
       FROM classes c
