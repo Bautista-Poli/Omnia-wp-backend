@@ -85,7 +85,7 @@ app.get('/classes/:name', async (req, res) => {
         c.profesorId,
         c.profesor2Id
       FROM classes c
-      WHERE c.nombre = $1
+      WHERE c.name = $1
       `,
       [name]
     );
