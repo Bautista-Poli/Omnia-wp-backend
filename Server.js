@@ -100,7 +100,7 @@ app.get('/get-profesorList', async (_req, res) => {
     try {
       const { rows } = await pool.query(`
         SELECT id, nombre, foto_url, bio
-        FROM profesores
+        FROM profesor
         ORDER BY nombre ASC
       `);
       return res.json(rows);
