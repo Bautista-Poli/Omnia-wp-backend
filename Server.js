@@ -105,9 +105,8 @@ app.get('/profesores/:id', async (req, res) => {
     const { rows } = await pool.query(
       `
       SELECT
-        p.id,
         p.nombre,
-        p.src AS foto_url,
+        p.src AS foto_url
       FROM profesor p
       WHERE p.id = $1
       `,
