@@ -9,63 +9,50 @@ const { pool } = require('./Database.js');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// --- Config sesión
-const COOKIE = 'session';
-const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret';
-const isProd = process.env.NODE_ENV === 'production';
-const COOKIE_OPTS = {
-  httpOnly: true,
-  secure: isProd,                // local: false, prod: true
-  sameSite: isProd ? 'none' : 'lax',
-  path: '/',
-  maxAge: 2 * 60 * 60 * 1000     // 2h
-};
+const allowedOrigins = [
+  'http://localhost:4200',
+  'https://omnia-wp.vercel.app'
+];
 
-// --- CORS
-const allowlist = ['http://localhost:4200', 'https://omnia-wp.vercel.app'];
-const corsOptions = {
-  origin(origin, cb) {
-    if (!origin || allowlist.includes(origin)) return cb(null, true);
-    cb(new Error('Not allowed by CORS'));
+const corsOpts = {
+  origin: (origin, cb) => {
+    // permite curl/postman (sin Origin) y los origins de la lista
+    if (!origin) return cb(null, true);
+    cb(null, allowedOrigins.includes(origin));
   },
-  credentials: true
+  credentials: true,
+  methods: ['GET','HEAD','PUT','PATCH','POST','DELETE','OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  exposedHeaders: ['Set-Cookie'],
 };
 
-app.use(cors(corsOptions));
-app.options('*', cors(corsOptions));   // preflight
+// CORS *antes* de todo
+app.use(cors(corsOpts));
+app.options('*', cors(corsOpts));  // <-- importante para preflight
+
 app.use(express.json());
 app.use(cookieParser());
+app.use(express.static(path.join(__dirname, 'dist/omnia/browser')));
 
-// --- APIs
-app.get('/get-schedule', async (_req, res) => {
-  try {
-    const r = await pool.query('SELECT * FROM schedule;');
-    res.json(r.rows);
-  } catch (e) {
-    console.error(e);
-    res.status(500).json({ error: 'server_error' });
-  }
-});
+// ---------- Auth (cookie httpOnly)
+const COOKIE = 'session';
+const COOKIE_OPTS = {
+  httpOnly: true,
+  secure: process.env.NODE_ENV === 'production',       // prod: true, local: false
+  sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+  path: '/',
+  maxAge: 2 * 60 * 60 * 1000,
+};
+const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret';
 
 app.post('/login', (req, res) => {
   const { username, password } = req.body || {};
-  // TODO: validar con DB + bcrypt
   if (username === 'admin' && password === 'admin') {
     const token = jwt.sign({ sub: 'admin', role: 'admin' }, JWT_SECRET, { expiresIn: '2h' });
     res.cookie(COOKIE, token, COOKIE_OPTS);
     return res.sendStatus(204);
   }
-  res.status(401).json({ error: 'bad_credentials' });
-});
-
-app.get('/me', (req, res) => {
-  const token = req.cookies?.[COOKIE];
-  try {
-    const payload = jwt.verify(token, JWT_SECRET);
-    res.json({ user: payload.sub, role: payload.role });
-  } catch {
-    res.status(401).json({ error: 'unauthenticated' });
-  }
+  return res.status(401).json({ error: 'bad_credentials' });
 });
 
 app.post('/logout', (_req, res) => {
@@ -73,8 +60,23 @@ app.post('/logout', (_req, res) => {
   res.sendStatus(204);
 });
 
-// Static + fallback (si servís el build de Angular desde acá)
-app.use(express.static(path.join(__dirname, 'dist/omnia/browser')));
+app.get('/me', (req, res) => {
+  try {
+    const token = req.cookies?.[COOKIE];
+    const payload = jwt.verify(token, JWT_SECRET);
+    res.json({ user: payload.sub, role: payload.role });
+  } catch {
+    res.status(401).json({ error: 'unauthenticated' });
+  }
+});
+
+// ---------- API existentes
+app.get('/get-schedule', async (_req, res) => {
+  const r = await pool.query('SELECT * FROM schedule;');
+  res.json(r.rows);
+});
+
+// Fallback Angular
 app.get('*', (_req, res) => {
   res.sendFile(path.join(__dirname, 'dist/omnia/browser/index.html'));
 });
