@@ -98,32 +98,24 @@ app.get('/get-classesList', async (_req, res) => {
 app.get('/get-profesorList', async (_req, res) => {
   try {
     const { rows } = await pool.query(`
-      SELECT 
-        id,
-        nombre,
-        src AS foto_url,            -- alias del campo src
-        NULL::text AS bio,          -- si no tenés bio aún, devuelve null
-        id_classes_profesorid
+      SELECT id, nombre, src
       FROM profesor
       ORDER BY nombre ASC
     `);
-
-    // opcional: agregar slug
+    // normalizo los nombres que usa el front
     const list = rows.map(r => ({
-      ...r,
-      slug: String(r.nombre || '').trim().toLowerCase().replace(/\s+/g, '-')
+      id: r.id,
+      nombre: r.nombre,
+      foto_url: r.src,
+      bio: null
     }));
-
-    return res.json(list);
+    res.json(list);
   } catch (err) {
-    console.error('GET /get-profesorList error:', err);
-    // si la tabla o columnas no existen, devolvé []
-    if (err.code === '42P01' || err.code === '42703') {
-      return res.json([]);
-    }
-    return res.status(500).json({ error: 'server_error' });
+    console.error('GET /get-profesorList error:', err.code, err.message);
+    res.status(500).json({ error: 'server_error', code: err.code, detail: err.message });
   }
 });
+
 
 // ---------- API existentes
 app.get('/get-schedule', async (_req, res) => {
