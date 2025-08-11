@@ -73,26 +73,38 @@ app.get('/me', (req, res) => {
 });
 
 
-app.get('/get-classesList', async (_req, res) => {
+app.get('/classes/:name', async (req, res) => {
   try {
+    const { name } = req.params;
+
     const { rows } = await pool.query(
-      `SELECT id, name AS nombre, src, description
-       FROM classes
-       ORDER BY name ASC`
+      `
+      SELECT
+        c.src,
+        c.descripcion,
+        c.profesorId,
+        c.profesor2Id
+      FROM classes c
+      WHERE c.nombre = $1
+      `,
+      [name]
     );
 
-    // si querés devolver también un slug:
-    const list = rows.map(r => ({
-      ...r,
-      slug: String(r.nombre || '').trim().toLowerCase().replace(/\s+/g, '-')
-    }));
+    if (rows.length === 0) {
+      return res.status(404).json({ error: 'not_found' });
+    }
 
-    return res.json(list); // si está vacío -> []
+    res.json(rows[0]);
   } catch (err) {
-    console.error('GET /get-classesList error:', err);
-    return res.status(500).json({ error: 'server_error' });
+    console.error('GET /classes/:name error:', err.code, err.message);
+    res.status(500).json({
+      error: 'server_error',
+      code: err.code,
+      detail: err.message
+    });
   }
 });
+
 
 
 app.get('/profesores/:id', async (req, res) => {
