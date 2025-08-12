@@ -193,9 +193,26 @@ app.get('/profesores/:id', async (req, res) => {
   }
 });
 
+app.get('/schedule/slot', async (req, res) => {
+  try {
+    const { dia_semana, horario } = req.query;
+    const { rows } = await pool.query(
+      `
+      SELECT id, nombre_clase, horario, dia_semana
+      FROM schedule
+      WHERE dia_semana = $1::int AND horario = $2::time
+      LIMIT 1
+      `,
+      [dia_semana, horario]
+    );
+    if (rows.length === 0) return res.status(404).json({ error: 'not_found' });
+    res.json(rows[0]);
+  } catch (err) {
+    console.error('GET /schedule/slot error:', err.code, err.message);
+    res.status(500).json({ error: 'server_error', code: err.code, detail: err.message });
+  }
+});
 
-
-// ---------- API existentes
 app.get('/get-schedule', async (_req, res) => {
   const r = await pool.query('SELECT * FROM schedule;');
   res.json(r.rows);
