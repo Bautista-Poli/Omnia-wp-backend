@@ -3,7 +3,7 @@ const { Router } = require('express');
 const { pool } = require('../Database'); 
 const r = Router();
 
-app.get('/profesores/names', async (_req, res) => {
+r.get('/profesores/names', async (_req, res) => {
   try {
     const { rows } = await pool.query(`
       SELECT DISTINCT nombre
@@ -18,7 +18,7 @@ app.get('/profesores/names', async (_req, res) => {
   }
 });
 
-app.get('/profesores/:id', async (req, res) => {
+r.get('/profesores/:id', async (req, res) => {
   const id = Number(req.params.id);
   if (!Number.isInteger(id)) {
     return res.status(400).json({ error: 'bad_request', detail: 'id must be integer' });
@@ -47,7 +47,7 @@ app.get('/profesores/:id', async (req, res) => {
   }
 });
 
-app.delete('/profesores', async (req, res) => {
+r.delete('/profesores', async (req, res) => {
   try {
     const { nombre } = req.body;
 
