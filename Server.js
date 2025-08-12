@@ -173,6 +173,33 @@ app.get('/profesores/:id', async (req, res) => {
   }
 });
 
+app.delete('/profesores', async (req, res) => {
+  try {
+    const { nombre } = req.body;
+
+    if (!nombre) {
+      return res.status(400).json({ error: 'bad_request', detail: 'nombre es requerido' });
+    }
+
+    const { rowCount } = await pool.query(
+      `
+      DELETE FROM profesor
+      WHERE LOWER(nombre) = LOWER($1::text)
+      `,
+      [nombre]
+    );
+
+    if (rowCount === 0) {
+      return res.status(404).json({ error: 'not_found' });
+    }
+
+    res.json({ deleted: rowCount });
+  } catch (err) {
+    console.error('DELETE /profesores payload:', req.body);
+    console.error('DELETE /profesores error:', err.code, err.message, err.detail);
+    res.status(500).json({ error: 'server_error', code: err.code, detail: err.message });
+  }
+});
 
 
 app.get('/schedule/slot', async (req, res) => {
