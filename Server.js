@@ -119,6 +119,23 @@ app.get('/classes/:name', async (req, res) => {
   }
 });
 
+app.post('/schedule', async (req, res) => {
+  try {
+    const { nombre_clase, horario, dia } = req.body;
+    const { rows } = await pool.query(
+      `
+      INSERT INTO schedule (name, day, hour)
+      VALUES ($1, $2, $3)
+      RETURNING *;
+      `,
+      [nombre_clase, dia, horario] // horario p.ej. "18:30:00"
+    );
+    res.status(201).json(rows[0]);
+  } catch (err) {
+    console.error('POST /schedule error:', err.code, err.message);
+    res.status(500).json({ error: 'server_error', code: err.code, detail: err.message });
+  }
+});
 
 
 app.get('/profesores/:id', async (req, res) => {
@@ -155,6 +172,7 @@ app.get('/get-schedule', async (_req, res) => {
   const r = await pool.query('SELECT * FROM schedule;');
   res.json(r.rows);
 });
+
 
 
 // Fallback Angular
