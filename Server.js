@@ -137,9 +137,9 @@ app.get('/profesores/names', async (_req, res) => {
       ORDER BY nombre ASC
     `);
     
-    res.json(rows.map(r => r.name));
+    res.json(rows.map(r => r.nombre));
   } catch (err) {
-    console.error('GET /classes/names error:', err.code, err.message);
+    console.error('GET /profesores/names error:', err.code, err.message);
     res.status(500).json({ error: 'server_error', code: err.code, detail: err.message });
   }
 });
