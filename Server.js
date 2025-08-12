@@ -118,7 +118,7 @@ app.get('/profesores/:id', async (req, res) => {
       `
       SELECT
         p.nombre,
-        p.src AS foto_url
+        p.src
       FROM profesor p
       WHERE p.id = $1
       `,
