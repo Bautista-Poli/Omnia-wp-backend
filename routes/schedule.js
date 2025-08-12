@@ -4,7 +4,7 @@ const r = Router();
 
 
 
-app.post('/schedule', async (req, res) => {
+r.post('/schedule', async (req, res) => {
   try {
     const { nombre_clase, horario, dia_semana } = req.body; // 👈 usar dia_semana
 
@@ -26,7 +26,7 @@ app.post('/schedule', async (req, res) => {
 });
 
 
-app.delete('/schedule', async (req, res) => {
+r.delete('/schedule', async (req, res) => {
   try {
     const { nombre_clase, horario, dia_semana } = req.body;
 
@@ -52,7 +52,7 @@ app.delete('/schedule', async (req, res) => {
 
 
 
-app.get('/schedule/slot', async (req, res) => {
+r.get('/schedule/slot', async (req, res) => {
   try {
     const { dia_semana, horario } = req.query;
     const { rows } = await pool.query(
@@ -72,7 +72,7 @@ app.get('/schedule/slot', async (req, res) => {
   }
 });
 
-app.get('/get-schedule', async (_req, res) => {
+r.get('/get-schedule', async (_req, res) => {
   const r = await pool.query('SELECT * FROM schedule;');
   res.json(r.rows);
 });
