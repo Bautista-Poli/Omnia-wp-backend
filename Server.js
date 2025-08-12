@@ -3,9 +3,8 @@ const express = require('express');
 const path = require('path');
 const cors = require('cors');
 const cookieParser = require('cookie-parser');
-const jwt = require('jsonwebtoken');
 const { pool } = require('./Database.js');
-
+const registerAuthRoutes = require('./auth.controller');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
@@ -34,43 +33,9 @@ app.use(express.json());
 app.use(cookieParser());
 app.use(express.static(path.join(__dirname, 'dist/omnia/browser')));
 
-// ---------- Auth (cookie httpOnly)
-const COOKIE = 'session';
-const COOKIE_OPTS = {
-  httpOnly: true,
-  secure: process.env.NODE_ENV === 'production',       // prod: true, local: false
-  sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
-  path: '/',
-  maxAge: 2 * 60 * 60 * 1000,
-};
-const JWT_SECRET = process.env.JWT_SECRET || 'dev-secret';
 
-app.post('/login', (req, res) => {
-  const { username, password } = req.body || {};
-  if (username === 'admin' && password === 'admin') {
-    const token = jwt.sign({ sub: 'admin', role: 'admin' }, JWT_SECRET, { expiresIn: '2h' });
-    res.cookie(COOKIE, token, COOKIE_OPTS);
-    return res.sendStatus(204);
-  }
-  return res.status(401).json({ error: 'bad_credentials' });
-});
+registerAuthRoutes(app);
 
-app.post('/logout', (_req, res) => {
-  res.clearCookie(COOKIE, { ...COOKIE_OPTS, maxAge: 0 });
-  res.sendStatus(204);
-});
-
-app.get('/healthz', (_req,res)=>res.status(200).send('ok'));
-
-app.get('/me', (req, res) => {
-  try {
-    const token = req.cookies?.[COOKIE];
-    const payload = jwt.verify(token, JWT_SECRET);
-    res.json({ user: payload.sub, role: payload.role });
-  } catch {
-    res.status(401).json({ error: 'unauthenticated' });
-  }
-});
 
 app.get('/classes/names', async (_req, res) => {
   try {
@@ -164,6 +129,21 @@ app.delete('/schedule', async (req, res) => {
   }
 });
 
+app.get('/profesores/names', async (_req, res) => {
+  try {
+    const { rows } = await pool.query(`
+      SELECT DISTINCT name
+      FROM profesores
+      ORDER BY name ASC
+    `);
+    
+    res.json(rows.map(r => r.name));
+  } catch (err) {
+    console.error('GET /classes/names error:', err.code, err.message);
+    res.status(500).json({ error: 'server_error', code: err.code, detail: err.message });
+  }
+});
+
 app.get('/profesores/:id', async (req, res) => {
   const id = Number(req.params.id);
   if (!Number.isInteger(id)) {
@@ -192,6 +172,8 @@ app.get('/profesores/:id', async (req, res) => {
     res.status(500).json({ error: 'server_error', code: err.code, detail: err.message });
   }
 });
+
+
 
 app.get('/schedule/slot', async (req, res) => {
   try {
