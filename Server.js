@@ -137,12 +137,28 @@ app.get('/profesores/:id', async (req, res) => {
 });
 
 
+app.get('/classes/names', async (_req, res) => {
+  try {
+    const { rows } = await pool.query(`
+      SELECT DISTINCT name
+      FROM classes
+      ORDER BY name ASC
+    `);
+
+    // Devuelve ["Zumba", "CrossFit", ...]
+    res.json(rows.map(r => r.name));
+  } catch (err) {
+    console.error('GET /classes/names error:', err.code, err.message);
+    res.status(500).json({ error: 'server_error', code: err.code, detail: err.message });
+  }
+});
 
 // ---------- API existentes
 app.get('/get-schedule', async (_req, res) => {
   const r = await pool.query('SELECT * FROM schedule;');
   res.json(r.rows);
 });
+
 
 // Fallback Angular
 app.get('*', (_req, res) => {
