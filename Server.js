@@ -167,6 +167,29 @@ app.get('/profesores/:id', async (req, res) => {
   }
 });
 
+app.delete('/schedule', async (req, res) => {
+  try {
+    const { nombre_clase, horario, dia } = req.body;
+
+    const { rowCount } = await pool.query(
+      `
+      DELETE FROM schedule
+      WHERE name = $1
+        AND day = $2
+        AND hour = $3
+      `,
+      [nombre_clase, dia, horario]
+    );
+
+    if (rowCount === 0) return res.status(404).json({ error: 'not_found' });
+    res.json({ deleted: rowCount });
+  } catch (err) {
+    console.error('DELETE /schedule error:', err.code, err.message);
+    res.status(500).json({ error: 'server_error', code: err.code, detail: err.message });
+  }
+});
+
+
 // ---------- API existentes
 app.get('/get-schedule', async (_req, res) => {
   const r = await pool.query('SELECT * FROM schedule;');
