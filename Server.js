@@ -133,7 +133,7 @@ app.get('/profesores/names', async (_req, res) => {
   try {
     const { rows } = await pool.query(`
       SELECT DISTINCT name
-      FROM profesores
+      FROM profesor
       ORDER BY name ASC
     `);
     
