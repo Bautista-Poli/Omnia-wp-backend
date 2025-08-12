@@ -124,7 +124,7 @@ app.post('/schedule', async (req, res) => {
     const { nombre_clase, horario, dia } = req.body;
     const { rows } = await pool.query(
       `
-      INSERT INTO schedule (name, day, hour)
+      INSERT INTO schedule (nombre_clase, horario, dia_semana)
       VALUES ($1, $2, $3)
       RETURNING *;
       `,
