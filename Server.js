@@ -72,6 +72,20 @@ app.get('/me', (req, res) => {
   }
 });
 
+app.get('/classes/names', async (_req, res) => {
+  try {
+    const { rows } = await pool.query(`
+      SELECT DISTINCT name
+      FROM classes
+      ORDER BY name ASC
+    `);
+    
+    res.json(rows.map(r => r.name));
+  } catch (err) {
+    console.error('GET /classes/names error:', err.code, err.message);
+    res.status(500).json({ error: 'server_error', code: err.code, detail: err.message });
+  }
+});
 
 app.get('/classes/:name', async (req, res) => {
   try {
@@ -132,23 +146,6 @@ app.get('/profesores/:id', async (req, res) => {
     res.json(rows[0]);
   } catch (err) {
     console.error('GET /profesores/:id error:', err.code, err.message);
-    res.status(500).json({ error: 'server_error', code: err.code, detail: err.message });
-  }
-});
-
-
-app.get('/classes/names', async (_req, res) => {
-  try {
-    const { rows } = await pool.query(`
-      SELECT DISTINCT name
-      FROM classes
-      ORDER BY name ASC
-    `);
-
-    // Devuelve ["Zumba", "CrossFit", ...]
-    res.json(rows.map(r => r.name));
-  } catch (err) {
-    console.error('GET /classes/names error:', err.code, err.message);
     res.status(500).json({ error: 'server_error', code: err.code, detail: err.message });
   }
 });
