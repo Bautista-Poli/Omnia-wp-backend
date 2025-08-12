@@ -132,9 +132,9 @@ app.delete('/schedule', async (req, res) => {
 app.get('/profesores/names', async (_req, res) => {
   try {
     const { rows } = await pool.query(`
-      SELECT DISTINCT name
+      SELECT DISTINCT nombre
       FROM profesor
-      ORDER BY name ASC
+      ORDER BY nombre ASC
     `);
     
     res.json(rows.map(r => r.name));
