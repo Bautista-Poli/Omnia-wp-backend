@@ -47,31 +47,48 @@ r.get('/profesores/:id', async (req, res) => {
   }
 });
 
+
 r.delete('/profesores', async (req, res) => {
+  const client = await pool.connect();
   try {
     const { nombre } = req.body;
-
     if (!nombre) {
       return res.status(400).json({ error: 'bad_request', detail: 'nombre es requerido' });
     }
 
-    const { rowCount } = await pool.query(
-      `
-      DELETE FROM profesor
-      WHERE LOWER(nombre) = LOWER($1::text)
-      `,
+    await client.query('BEGIN');
+
+    // 1) buscar id del profesor por nombre (case-insensitive)
+    const prof = await client.query(
+      `SELECT id FROM profesor WHERE LOWER(nombre) = LOWER($1) LIMIT 1`,
       [nombre]
     );
-
-    if (rowCount === 0) {
+    if (prof.rows.length === 0) {
+      await client.query('ROLLBACK');
       return res.status(404).json({ error: 'not_found' });
     }
+    const profesorId = prof.rows[0].id;
 
-    res.json({ deleted: rowCount });
+    // 2) limpiar referencias en classes
+    await client.query(`UPDATE classes SET profesorId = NULL WHERE profesorId = $1`, [profesorId]);
+    await client.query(`UPDATE classes SET profesor2Id = NULL WHERE profesor2Id = $1`, [profesorId]);
+
+    // 3) borrar profesor
+    const del = await client.query(`DELETE FROM profesor WHERE id = $1`, [profesorId]);
+    await client.query('COMMIT');
+
+    return res.json({ deleted: del.rowCount, profesorId });
   } catch (err) {
+    await (async () => { try { await client.query('ROLLBACK'); } catch(_) {} })();
     console.error('DELETE /profesores payload:', req.body);
     console.error('DELETE /profesores error:', err.code, err.message, err.detail);
-    res.status(500).json({ error: 'server_error', code: err.code, detail: err.message });
+    // si querés distinguir FK:
+    if (err.code === '23503') {
+      return res.status(409).json({ error: 'conflict', detail: 'Profesor referenciado por classes' });
+    }
+    return res.status(500).json({ error: 'server_error', code: err.code, detail: err.message });
+  } finally {
+    client.release();
   }
 });
 
