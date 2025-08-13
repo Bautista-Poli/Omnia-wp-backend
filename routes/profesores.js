@@ -107,5 +107,65 @@ r.post('/upload-profesor', upload.single('photo'), async (req, res) => {
   }
 });
 
+
+// Helper simple: sacar public_id desde la URL de Cloudinary
+function publicIdFromCloudinaryUrl(url) {
+  try {
+    const u = new URL(url);
+    // /<cloud>/image/upload/(opcional v123)/carpeta/archivo.ext
+    const parts = u.pathname.split('/').filter(Boolean);
+    const idx = parts.findIndex(p => p === 'upload');
+    if (idx === -1) return null;
+
+    let start = idx + 1;
+    if (parts[start] && /^v\d+$/.test(parts[start])) start++; // saltear v123 si está
+
+    // Lo que queda: carpeta/archivo.ext -> remover extensión
+    const rest = parts.slice(start).join('/');
+    return rest.replace(/\.[^/.]+$/, '');
+  } catch {
+    return null;
+  }
+}
+
+// DELETE /profesores  { nombre: string }
+r.delete('/profesores', async (req, res) => {
+  try {
+    const nombre = (req.body?.nombre || '').trim();
+    if (!nombre) {
+      return res.status(400).json({ error: 'bad_request', detail: 'nombre es requerido' });
+    }
+
+    // Buscar profesor por nombre (asumimos único)
+    const qSel = 'SELECT id, src FROM profesor WHERE nombre = $1 LIMIT 1';
+    const { rows } = await pool.query(qSel, [nombre]);
+    if (rows.length === 0) {
+      return res.status(404).json({ error: 'not_found', detail: 'Profesor no existe' });
+    }
+
+    const { id, src } = rows[0];
+
+    // Obtener public_id desde src y borrar en Cloudinary (si podemos)
+    const publicId = publicIdFromCloudinaryUrl(src);
+    if (publicId) {
+      try {
+        await cloudinary.uploader.destroy(publicId, { resource_type: 'image' });
+      } catch (e) {
+        // Mantenerlo simple: logueamos y seguimos borrando la fila
+        console.error('Cloudinary destroy error:', e?.message || e);
+      }
+    }
+
+    // Borrar fila
+    await pool.query('DELETE FROM profesor WHERE id = $1', [id]);
+
+    return res.json({ ok: true, deleted: { id, nombre } });
+  } catch (err) {
+    console.error('DELETE /profesores error:', err);
+    return res.status(500).json({ error: 'server_error' });
+  }
+});
+
+
 module.exports = r;
 
