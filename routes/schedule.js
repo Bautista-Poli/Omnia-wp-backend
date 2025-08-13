@@ -6,11 +6,20 @@ const r = Router();
 
 r.post('/schedule', async (req, res) => {
   try {
-    const { nombre_clase, horario, dia_semana, profesorId, profesor2Id } = req.body;
+    const { nombre_clase, horario, dia_semana, nombreProfesor, nombreProfesor2 } = req.body;
+
+    // Si el nombre del profesor viene vacío, lo dejamos como null
+    const profesorId = nombreProfesor && nombreProfesor.trim() !== ''
+      ? await getProfesorIdByName(nombreProfesor)
+      : null;
+
+    const profesor2Id = nombreProfesor2 && nombreProfesor2.trim() !== ''
+      ? await getProfesorIdByName(nombreProfesor2)
+      : null;
 
     const { rows } = await pool.query(
       `
-      INSERT INTO schedule (nombre_clase, horario, dia_semana, profesorId)
+      INSERT INTO schedule (nombre_clase, horario, dia_semana, profesorId, profesor2Id)
       VALUES ($1::text, $2::time, $3::int, $4::int, $5::int)
       RETURNING *;
       `,
@@ -18,8 +27,8 @@ r.post('/schedule', async (req, res) => {
         nombre_clase,
         horario,
         dia_semana,
-        profesorId ?? null,   // 👈 Si viene undefined, lo manda como null
-        profesor2Id ?? null
+        profesorId,
+        profesor2Id
       ]
     );
 
@@ -30,6 +39,16 @@ r.post('/schedule', async (req, res) => {
     res.status(500).json({ error: 'server_error', code: err.code, detail: err.message });
   }
 });
+
+// Función auxiliar para obtener el ID del profesor por nombre
+async function getProfesorIdByName(nombre) {
+  const { rows } = await pool.query(
+    `SELECT id FROM profesor WHERE nombre = $1 LIMIT 1;`,
+    [nombre]
+  );
+  return rows.length > 0 ? rows[0].id : null;
+}
+
 
 
 
