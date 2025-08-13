@@ -10,6 +10,7 @@ const PORT = process.env.PORT || 3000;
 const clasesRouter = require('./routes/clases.js');
 const profesoresRouter = require('./routes/profesores.js');
 const scheduleRouter = require('./routes/schedule.js');
+const setProfesorRouter = require('./routes/setProfesorToSlot.js');
 
 const allowedOrigins = [
   'http://localhost:4200',
@@ -42,7 +43,7 @@ registerAuthRoutes(app);
 app.use(clasesRouter);
 app.use(profesoresRouter);
 app.use(scheduleRouter);
-
+app.use(setProfesorRouter);
 
 // Fallback Angular
 app.get('*', (_req, res) => {
