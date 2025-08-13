@@ -1,4 +1,4 @@
-// routes/schedule.js
+// routes/setProfesorToSlot.js
 const { Router } = require('express');
 const { pool } = require('../Database');
 const s = Router();
@@ -31,40 +31,36 @@ s.post('/schedule/set-profesores', async (req, res) => {
 
     await client.query('BEGIN');
 
-    // 1) class_id por nombre
-    const qClase = 'SELECT id FROM classes WHERE nombre = $1 LIMIT 1';
-    const rClase = await client.query(qClase, [nombre_clase]);
-    if (rClase.rowCount === 0) {
-      await client.query('ROLLBACK');
-      return res.status(404).json({ error: 'not_found', detail: 'Clase no encontrada' });
-    }
-    const class_id = rClase.rows[0].id;
-
-    // 2) profesores por nombre (acepta vacío => NULL)
+    // helper: id de profesor por nombre (si no existe o viene vacío -> null)
     async function idProfesorPorNombre(nombre) {
       if (!nombre || !nombre.trim()) return null;
-      const r = await client.query('SELECT id FROM profesor WHERE nombre = $1 LIMIT 1', [nombre.trim()]);
-      if (r.rowCount === 0) {
-        // si querés que falte y aún así setee null, devolvé null en vez de 404
-        return null;
-      }
-      return r.rows[0].id;
+      const r = await client.query(
+        'SELECT id FROM profesor WHERE nombre = $1 LIMIT 1',
+        [nombre.trim()]
+      );
+      return r.rowCount ? r.rows[0].id : null;
     }
 
     const prof1Id = await idProfesorPorNombre(nombreProfesor);
     const prof2Id = await idProfesorPorNombre(nombreProfesor2);
 
-    // 3) update del slot
+    // UPDATE por nombre_clase + dia_semana + horario (case-insensitive para nombre_clase)
     const qUpd = `
       UPDATE schedule
-      SET profesor_id = $1,
-          profesor2_id = $2
-      WHERE class_id = $3
+      SET "profesorId"  = $1,
+          "profesor2Id" = $2
+      WHERE nombre_clase ILIKE $3
         AND dia_semana = $4
-        AND horario = $5
-      RETURNING id, class_id, dia_semana, horario, profesor_id, profesor2_id
+        AND horario    = $5
+      RETURNING id, nombre_clase, dia_semana, horario, "profesorId", "profesor2Id"
     `;
-    const rUpd = await client.query(qUpd, [prof1Id, prof2Id, class_id, dia_semana, horario]);
+    const rUpd = await client.query(qUpd, [
+      prof1Id,
+      prof2Id,
+      nombre_clase,
+      dia_semana,
+      horario
+    ]);
 
     if (rUpd.rowCount === 0) {
       await client.query('ROLLBACK');
@@ -72,16 +68,17 @@ s.post('/schedule/set-profesores', async (req, res) => {
     }
 
     await client.query('COMMIT');
-    return res.json({
-      ok: true,
-      updated: rUpd.rows[0]
-    });
+    return res.json({ ok: true, updated: rUpd.rows[0] });
   } catch (err) {
     try { await client.query('ROLLBACK'); } catch {}
     console.error('POST /schedule/set-profesores error:', err);
-    // errores FK si profesor_id no permite null o si la FK no matchea
+    // FK inválida
     if (err.code === '23503') {
-      return res.status(409).json({ error: 'conflict', detail: 'FK inválida: verifique nombres de profesores o permita NULLs' });
+      return res.status(409).json({ error: 'conflict', detail: 'FK inválida: revise nombres de profesores o permita NULL' });
+    }
+    // NOT NULL violado
+    if (err.code === '23502') {
+      return res.status(409).json({ error: 'conflict', detail: 'La columna profesorId/profesor2Id no permite NULL' });
     }
     return res.status(500).json({ error: 'server_error' });
   } finally {
