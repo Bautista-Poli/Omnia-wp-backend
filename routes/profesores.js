@@ -1,7 +1,30 @@
-
+// routes/profesores.js
 const { Router } = require('express');
 const { pool } = require('../Database'); 
+const multer = require('multer');
+const cloudinary = require('cloudinary').v2;
+
 const r = Router();
+
+// Cloudinary lee CLOUDINARY_URL del entorno automáticamente.
+// Solo forzamos HTTPS en las URLs:
+cloudinary.config({ secure: true });
+
+// Multer en memoria (no escribe a disco del servidor)
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5 MB
+  fileFilter: (req, file, cb) => {
+    if (!file.mimetype || !file.mimetype.startsWith('image/')) {
+      return cb(new Error('Solo se permiten imágenes'), false);
+    }
+    cb(null, true);
+  }
+});
+
+/* ======================
+   Rutas existentes (tuyas)
+   ====================== */
 
 r.get('/profesores/names', async (_req, res) => {
   try {
@@ -10,7 +33,6 @@ r.get('/profesores/names', async (_req, res) => {
       FROM profesor
       ORDER BY nombre ASC
     `);
-    
     res.json(rows.map(r => r.nombre));
   } catch (err) {
     console.error('GET /profesores/names error:', err.code, err.message);
@@ -26,13 +48,9 @@ r.get('/profesores/:id', async (req, res) => {
 
   try {
     const { rows } = await pool.query(
-      `
-      SELECT
-        p.nombre,
-        p.src
-      FROM profesor p
-      WHERE p.id = $1
-      `,
+      `SELECT p.nombre, p.src
+       FROM profesor p
+       WHERE p.id = $1`,
       [id]
     );
 
@@ -47,49 +65,47 @@ r.get('/profesores/:id', async (req, res) => {
   }
 });
 
-
-r.delete('/profesores', async (req, res) => {
-  const client = await pool.connect();
+/* ======================
+   Nueva: subir profesor + foto
+   Path: POST /upload-profesor
+   Form fields:
+     - name  (string)
+     - photo (file)
+   ====================== */
+r.post('/upload-profesor', upload.single('photo'), async (req, res) => {
   try {
-    const { nombre } = req.body;
-    if (!nombre) {
-      return res.status(400).json({ error: 'bad_request', detail: 'nombre es requerido' });
-    }
+    const name = (req.body.name || '').trim();
+    if (!name) return res.status(400).json({ error: 'bad_request', detail: 'name es requerido' });
+    if (!req.file) return res.status(400).json({ error: 'bad_request', detail: 'photo es requerida' });
 
-    await client.query('BEGIN');
+    // Subir a Cloudinary desde el buffer
+    const result = await new Promise((resolve, reject) => {
+      const stream = cloudinary.uploader.upload_stream(
+        { folder: 'profesores', resource_type: 'image' },
+        (error, uploadResult) => (error ? reject(error) : resolve(uploadResult))
+      );
+      stream.end(req.file.buffer);
+    });
 
-    // 1) buscar id del profesor por nombre (case-insensitive)
-    const prof = await client.query(
-      `SELECT id FROM profesor WHERE LOWER(nombre) = LOWER($1) LIMIT 1`,
-      [nombre]
-    );
-    if (prof.rows.length === 0) {
-      await client.query('ROLLBACK');
-      return res.status(404).json({ error: 'not_found' });
-    }
-    const profesorId = prof.rows[0].id;
+    const photoUrl = result.secure_url;
+    
+    const insertSql = `
+      INSERT INTO profesor (nombre, src)
+      VALUES ($1, $2)
+      RETURNING id, nombre, src
+    `;
+    const { rows } = await pool.query(insertSql, [name, photoUrl]);
 
-    // 2) limpiar referencias en classes
-    await client.query(`UPDATE classes SET profesorId = NULL WHERE profesorId = $1`, [profesorId]);
-    await client.query(`UPDATE classes SET profesor2Id = NULL WHERE profesor2Id = $1`, [profesorId]);
-
-    // 3) borrar profesor
-    const del = await client.query(`DELETE FROM profesor WHERE id = $1`, [profesorId]);
-    await client.query('COMMIT');
-
-    return res.json({ deleted: del.rowCount, profesorId });
+    return res.status(201).json(rows[0]);
   } catch (err) {
-    await (async () => { try { await client.query('ROLLBACK'); } catch(_) {} })();
-    console.error('DELETE /profesores payload:', req.body);
-    console.error('DELETE /profesores error:', err.code, err.message, err.detail);
-    // si querés distinguir FK:
-    if (err.code === '23503') {
-      return res.status(409).json({ error: 'conflict', detail: 'Profesor referenciado por classes' });
+    console.error('POST /upload-profesor error:', err);
+    // Errores de Multer
+    if (err instanceof multer.MulterError) {
+      return res.status(400).json({ error: 'upload_error', detail: err.message });
     }
-    return res.status(500).json({ error: 'server_error', code: err.code, detail: err.message });
-  } finally {
-    client.release();
+    return res.status(500).json({ error: 'server_error', detail: 'No se pudo subir el profesor' });
   }
 });
 
 module.exports = r;
+

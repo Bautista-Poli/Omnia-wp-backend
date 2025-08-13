@@ -7,7 +7,6 @@ const registerAuthRoutes = require('./auth.controller');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-
 const clasesRouter = require('./routes/clases.js');
 const profesoresRouter = require('./routes/profesores.js');
 const scheduleRouter = require('./routes/schedule.js');
