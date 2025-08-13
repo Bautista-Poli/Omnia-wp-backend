@@ -19,7 +19,7 @@ r.post('/schedule', async (req, res) => {
 
     const { rows } = await pool.query(
       `
-      INSERT INTO schedule (nombre_clase, horario, dia_semana, profesorId, profesor2Id)
+      INSERT INTO schedule (nombre_clase, horario, dia_semana, "profesorId", "profesor2Id")
       VALUES ($1::text, $2::time, $3::int, $4::int, $5::int)
       RETURNING *;
       `,
