@@ -1,7 +1,26 @@
 // routes/clases.js
 const { Router } = require('express');
 const { pool } = require('../Database'); 
+const multer = require('multer');
+const cloudinary = require('cloudinary').v2;
+
 const r = Router();
+
+// Cloudinary lee CLOUDINARY_URL del entorno automáticamente.
+// Solo forzamos HTTPS en las URLs:
+cloudinary.config({ secure: true });
+
+// Multer en memoria (no escribe a disco del servidor)
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5 MB
+  fileFilter: (req, file, cb) => {
+    if (!file.mimetype || !file.mimetype.startsWith('image/')) {
+      return cb(new Error('Solo se permiten imágenes'), false);
+    }
+    cb(null, true);
+  }
+});
 
 
 r.get('/classes/names', async (_req, res) => {
