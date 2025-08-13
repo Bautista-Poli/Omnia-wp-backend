@@ -6,15 +6,21 @@ const r = Router();
 
 r.post('/schedule', async (req, res) => {
   try {
-    const { nombre_clase, horario, dia_semana } = req.body; // 👈 usar dia_semana
+    const { nombre_clase, horario, dia_semana, profesorId, profesor2Id } = req.body;
 
     const { rows } = await pool.query(
       `
-      INSERT INTO schedule (nombre_clase, horario, dia_semana)
-      VALUES ($1::text, $2::time, $3::int)
+      INSERT INTO schedule (nombre_clase, horario, dia_semana, profesorId)
+      VALUES ($1::text, $2::time, $3::int, $4::int, $5::int)
       RETURNING *;
       `,
-      [nombre_clase, horario, dia_semana] // 👈 orden correcto
+      [
+        nombre_clase,
+        horario,
+        dia_semana,
+        profesorId ?? null,   // 👈 Si viene undefined, lo manda como null
+        profesor2Id ?? null
+      ]
     );
 
     res.status(201).json(rows[0]);
@@ -24,6 +30,7 @@ r.post('/schedule', async (req, res) => {
     res.status(500).json({ error: 'server_error', code: err.code, detail: err.message });
   }
 });
+
 
 
 r.delete('/schedule', async (req, res) => {

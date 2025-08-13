@@ -25,9 +25,7 @@ r.get('/classes/:name', async (req, res) => {
     const { rows } = await pool.query(`
       SELECT
         c.src,
-        c.description,
-        c.profesorId,
-        c.profesor2Id
+        c.description
       FROM classes c
       WHERE c.name = $1
     `, [name]);
