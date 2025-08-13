@@ -150,13 +150,12 @@ function publicIdFromCloudinaryUrl(url) {
 r.delete('/class', async (req, res) => {
   try {
     const { nombre, name } = req.body;
-    // Acepto "nombre" o "name" para mayor comodidad
     const className = ((name || nombre) || '').trim();
     if (!className) {
       return res.status(400).json({ error: 'bad_request', detail: 'name es requerido' });
     }
 
-    // 1) Traer todas las filas que matcheen el nombre (case-insensitive)
+    // 1) Buscar clases que matcheen el nombre (case-insensitive)
     const { rows } = await pool.query(
       `
       SELECT id, name, src
@@ -166,50 +165,48 @@ r.delete('/class', async (req, res) => {
       [className]
     );
 
-    if (rows.length === 0) {
-      return res.status(404).json({ error: 'not_found' });
-    }
-
-    // 2) Intentar borrar en Cloudinary (best-effort)
-    const cloudinaryResults = [];
-    for (const r of rows) {
-      const pid = publicIdFromCloudinaryUrl(r.src);
-      if (!pid) {
-        cloudinaryResults.push({ id: r.id, status: 'skip', reason: 'public_id_invalido' });
-        continue;
+    // 2) Borrar en Cloudinary (best-effort) si hay filas
+    if (rows.length > 0) {
+      for (const r of rows) {
+        const pid = publicIdFromCloudinaryUrl(r.src);
+        if (!pid) continue;
+        try {
+          await cloudinary.uploader.destroy(pid, { resource_type: 'image' });
+        } catch (_) {
+          // Ignorar errores de Cloudinary (best-effort)
+        }
       }
-      try {
-        const destroyRes = await cloudinary.uploader.destroy(pid, { resource_type: 'image' });
-        cloudinaryResults.push({ id: r.id, status: 'ok', public_id: pid, result: destroyRes?.result });
-      } catch (e) {
-        cloudinaryResults.push({
-          id: r.id,
-          status: 'error',
-          public_id: pid,
-          error: e?.message || 'cloudinary_destroy_failed'
-        });
-      }
-    }
 
-    // 3) Borrar filas en DB
-    const del = await pool.query(
+      // 3) Borrar filas en DB (classes)
+      await pool.query(
+        `
+        DELETE FROM classes
+        WHERE LOWER(name) = LOWER($1::text)
+        `,
+        [className]
+      );
+    }
+    // 4) Siempre eliminar schedules con ese nombre (aunque no exista la clase)
+    await pool.query(
       `
-      DELETE FROM classes
-      WHERE LOWER(name) = LOWER($1::text)
+      DELETE FROM schedule
+      WHERE LOWER(nombre_clase) = LOWER($1::text)
       `,
       [className]
     );
 
+    // 5) Respuesta de éxito
     return res.json({
-      deleted: del.rowCount,
-      name: className,
-      cloudinary: cloudinaryResults
+      ok: true,
+      message: 'Eliminación completada: schedules eliminados y, si existía, la clase (y su imagen).',
+      name: className
     });
   } catch (err) {
     console.error('DELETE /class error:', err.code, err.message, err.detail);
     return res.status(500).json({ error: 'server_error', code: err.code, detail: err.message });
   }
 });
+
 
 
 
